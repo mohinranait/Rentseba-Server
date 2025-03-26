@@ -17,6 +17,7 @@ const addNewCrm = async (req, res,next) => {
         next(error)
     }
 }
+
 /**
  * @api {get} /crm/checked -> Unique data checked
 */
@@ -73,16 +74,52 @@ const updateCrmByID = async (req, res,next) => {
 */
 const getAllCrm = async (req, res,next) => {
     try {
-        
-        const crms = await Crm.find({});
+        let { page = 1, limit = 10, search, category, clientType, district, sortBy = 'createdAt', order = 'desc' } = req.query;
+
+        page = parseInt(page);
+        limit = parseInt(limit);
+        order = order === 'asc' ? 1 : -1;
+
+        let filter = {};
+
+        // Apply filtering based on query parameters
+        if (category) filter.category = category;
+        if (clientType) filter.clientType = clientType;
+        if (district) filter.district = district;
+
+        // Apply search on 'name' and 'phone'
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: "i" } },
+                { phone: { $regex: search, $options: "i" } }
+            ];
+        }
+
+        // Fetch data with pagination and sorting
+        const crms = await Crm.find(filter)
+            .sort({ [sortBy]: order })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        // Get total count for pagination metadata
+        const total = await Crm.countDocuments(filter);
 
         return res.status(200).send({
             success: true,
-            message: "Crms",
-            payload: {crms},
+            message: "Crms retrieved successfully",
+            payload: {
+                crms,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            }
         });
+
     } catch (error) {
-        next(error)
+        next(error);
     }
 }
 
